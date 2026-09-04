@@ -14,15 +14,20 @@ create or replace function public.is_admin() returns boolean language sql securi
 create or replace function public.sync_level_points() returns trigger language plpgsql security definer set search_path=public as $$ begin new.updated_at=now(); return new; end $$;
 drop trigger if exists levels_updated on public.levels; create trigger levels_updated before update on public.levels for each row execute function public.sync_level_points();
 create or replace function public.move_level(p_level_id uuid,p_new_section text,p_new_rank int,p_name text,p_creator text,p_verifier text,p_holder text,p_description text,p_video_url text,p_thumbnail_url text) returns void language plpgsql security definer set search_path=public as $$ declare old_section text; old_rank int; target_rank int; cur record; begin if not public.is_admin() then raise exception 'not admin'; end if; select section,rank into old_section,old_rank from public.levels where id=p_level_id for update; if not found then raise exception 'level not found'; end if; target_rank=greatest(1,p_new_rank); update public.levels set rank=rank+10000 where section=p_new_section and id<>p_level_id and rank>=target_rank; update public.levels set section=p_new_section,rank=target_rank,name=p_name,creator=p_creator,verifier=p_verifier,holder=p_holder,description=p_description,video_url=nullif(p_video_url,''),thumbnail_url=nullif(p_thumbnail_url,'') where id=p_level_id; with ranked as(select id,row_number() over(order by rank,id)::int r from public.levels where section=p_new_section) update public.levels l set rank=ranked.r from ranked where l.id=ranked.id; if old_section is not null then with ranked as(select id,row_number() over(order by rank,id)::int r from public.levels where section=old_section) update public.levels l set rank=ranked.r from ranked where l.id=ranked.id; end if; insert into public.placement_history(level_id,section,rank,points,note) select p_level_id,p_new_section,target_rank,p.points,case when old_section<>p_new_section or old_rank<>target_rank then 'Placement changed' else 'Level edited' end from public.point_values p where p.rank=least(100,target_rank); end $$;
-create or replace function public.create_level(p_section text,p_rank int,p_name text) returns uuid language plpgsql security definer set search_path=public as $$
+create or replace function public.create_level(
+  p_section text, p_rank int, p_name text, p_creator text default '', p_verifier text default '',
+  p_holder text default '', p_description text default '', p_video_url text default null, p_thumbnail_url text default null
+) returns uuid language plpgsql security definer set search_path=public as $$
 declare new_id uuid; target_rank int; begin
   if not public.is_admin() then raise exception 'not admin'; end if;
   if p_section not in ('main','extended','legacy') then raise exception 'invalid section'; end if;
+  if nullif(trim(p_verifier),'') is null then raise exception 'verifier is required'; end if;
   target_rank=greatest(1,p_rank);
-  -- Make room before inserting so adding a new #1/#2/etc never hits the unique rank constraint.
   update public.levels set rank=rank+10000 where section=p_section and rank>=target_rank;
   update public.levels set rank=rank-9999 where section=p_section and rank>=target_rank+10000;
-  insert into public.levels(section,rank,name) values(p_section,target_rank,p_name) returning id into new_id;
+  insert into public.levels(section,rank,name,creator,verifier,holder,description,video_url,thumbnail_url)
+    values(p_section,target_rank,p_name,nullif(trim(p_creator),''),nullif(trim(p_verifier),''),nullif(trim(p_holder),''),
+           coalesce(p_description,''),nullif(trim(p_video_url),''),nullif(trim(p_thumbnail_url),'')) returning id into new_id;
   insert into public.placement_history(level_id,section,rank,points,note)
     select new_id,p_section,target_rank,coalesce((select points from public.point_values where rank=least(100,target_rank)),0),'Level added';
   return new_id;

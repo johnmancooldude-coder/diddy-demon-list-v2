@@ -46,8 +46,10 @@ function closeLevelForm(){$('levelModal').hidden=true}
 async function saveLevel(e){
   e.preventDefault();
   const id=$('levelId').value,name=$('levelName').value.trim(),section=$('levelSection').value,rank=Number($('levelRank').value);
+  const verifier=$('levelVerifier').value.trim();
   if(!name||!rank||rank<1)return alert('Enter a level name and valid rank.');
-  const payload={p_section:section,p_rank:rank,p_name:name,p_creator:$('levelCreator').value.trim(),p_verifier:$('levelVerifier').value.trim(),p_holder:$('levelHolder').value.trim(),p_description:$('levelDescription').value.trim(),p_video_url:$('levelVideo').value.trim(),p_thumbnail_url:$('levelThumbnail').value.trim()};
+  if(!verifier)return alert('Verifier is required.');
+  const payload={p_section:section,p_rank:rank,p_name:name,p_creator:$('levelCreator').value.trim(),p_verifier:verifier,p_holder:$('levelHolder').value.trim(),p_description:$('levelDescription').value.trim(),p_video_url:$('levelVideo').value.trim(),p_thumbnail_url:$('levelThumbnail').value.trim()};
   const call=id?sb.rpc('move_level',{p_level_id:id,p_new_section:section,p_new_rank:rank,p_name:name,p_creator:payload.p_creator,p_verifier:payload.p_verifier,p_holder:payload.p_holder,p_description:payload.p_description,p_video_url:payload.p_video_url,p_thumbnail_url:payload.p_thumbnail_url}):sb.rpc('create_level',payload);
   const {error}=await call;if(error){alert(error.message);return}
   if(id){const {error:e2}=await sb.from('levels').update({difficulty:$('levelDifficulty').value.trim()||null,status:$('levelStatus').value.trim()||null,aliases:$('levelAliases').value.trim()||null,notes:$('levelNotes').value.trim()||null}).eq('id',id);if(e2)return alert(e2.message)}else{const {data:newLevel}=await sb.from('levels').select('id').eq('section',section).eq('rank',rank).eq('name',name).maybeSingle();if(newLevel?.id){const {error:e2}=await sb.from('levels').update({difficulty:$('levelDifficulty').value.trim()||null,status:$('levelStatus').value.trim()||null,aliases:$('levelAliases').value.trim()||null,notes:$('levelNotes').value.trim()||null}).eq('id',newLevel.id);if(e2)return alert(e2.message)}}
