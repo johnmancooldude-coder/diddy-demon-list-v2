@@ -113,9 +113,16 @@ end $$;
 grant execute on function public.v18_capture_backup(text) to authenticated;
 
 create or replace function public.v18_get_latest_backup()
-returns jsonb language sql security definer set search_path=public stable as $$
-  select payload from public.v18_backups order by created_at desc limit 1;
-$$;
+returns jsonb language plpgsql security definer set search_path=public stable as $$
+declare result jsonb;
+begin
+  if not public.is_admin() then raise exception 'not admin'; end if;
+  select payload into result
+  from public.v18_backups
+  order by created_at desc
+  limit 1;
+  return result;
+end $$;
 grant execute on function public.v18_get_latest_backup() to authenticated;
 
 create or replace function public.v18_publish_news(p_title text,p_body text,p_add_changelog boolean default true)
@@ -145,7 +152,9 @@ from public.records r join public.players p on p.id=r.player_id join public.leve
 union all
 select ph.id,'placement'::text,ph.recorded_at,
        coalesce(l.name,'A level')||' is now #'||ph.rank,
-       coalesce(ph.note,'Placement update.'),null::uuid,ph.level_id;
+       coalesce(ph.note,'Placement update.'),null::uuid,ph.level_id
+from public.placement_history ph
+left join public.levels l on l.id=ph.level_id;
 grant select on public.v18_news_feed to anon,authenticated;
 
 -- Reliable ranking engine. Uses an advisory lock and unique temporary ranks.
@@ -153,13 +162,33 @@ create or replace function public.v18_resequence_section(p_section text)
 returns void language plpgsql security definer set search_path=public as $$
 declare r record; n int;
 begin
+  if not public.is_admin() then raise exception 'not admin'; end if;
   if p_section not in ('main','extended','legacy') then raise exception 'invalid section'; end if;
-  -- Park rows with unique temporary ranks.
-  with t as (select id,row_number() over(order by rank,id)::int rn from public.levels where section=p_section)
-  update public.levels l set rank=5000000+t.rn from t where l.id=t.id;
-  n:=case when p_section='main' then 0 when p_section='extended' then 45 else 100 end;
-  for r in select id from public.levels where section=p_section order by rank,id loop
-    n:=n+1; update public.levels set rank=n where id=r.id;
+  perform pg_advisory_xact_lock(hashtext('diddy_v18_ranking'));
+
+  -- First move every row to a unique temporary rank so the (section,rank)
+  -- unique constraint can never collide during resequencing.
+  with t as (
+    select id,row_number() over(order by rank,id)::int rn
+    from public.levels
+    where section=p_section
+  )
+  update public.levels l
+  set rank=5000000+t.rn
+  from t
+  where l.id=t.id;
+
+  n:=case when p_section='main' then 0
+          when p_section='extended' then 45
+          else 100 end;
+
+  for r in
+    select id from public.levels
+    where section=p_section
+    order by rank,id
+  loop
+    n:=n+1;
+    update public.levels set rank=n where id=r.id;
   end loop;
 end $$;
 grant execute on function public.v18_resequence_section(text) to authenticated;
@@ -171,109 +200,303 @@ begin
 end $$;
 grant execute on function public.v18_capture_backup_if_possible(text) to authenticated;
 
-create or replace function public.v18_move_level(p_level_id uuid,p_new_section text,p_new_rank int,p_name text,p_creator text,p_verifier text,p_holder text,p_description text,p_video_url text,p_thumbnail_url text)
+create or replace function public.v18_move_level(
+  p_level_id uuid,
+  p_new_section text,
+  p_new_rank int,
+  p_name text,
+  p_creator text,
+  p_verifier text,
+  p_holder text,
+  p_description text,
+  p_video_url text,
+  p_thumbnail_url text
+)
 returns void language plpgsql security definer set search_path=public as $$
-declare old_section text; old_rank int; target int; r record; n int; old_count int; overflow_id uuid;
+declare
+  old_section text;
+  old_rank int;
+  target int;
+  r record;
+  n int;
+  old_count int;
+  overflow_id uuid;
 begin
   if not public.is_admin() then raise exception 'not admin'; end if;
   if p_new_section not in ('main','extended','legacy') then raise exception 'invalid section'; end if;
-  select section,rank into old_section,old_rank from public.levels where id=p_level_id for update;
+
+  select section,rank
+    into old_section,old_rank
+  from public.levels
+  where id=p_level_id
+  for update;
+
   if not found then raise exception 'level not found'; end if;
-  if nullif(trim(coalesce(p_verifier,'')),'') is null then raise exception 'verifier is required'; end if;
+  if nullif(trim(coalesce(p_verifier,'')),'') is null then
+    raise exception 'verifier is required';
+  end if;
+
   perform pg_advisory_xact_lock(hashtext('diddy_v18_ranking'));
   perform public.v18_capture_backup('Before move: '||coalesce(p_name,'level'));
+
   target:=greatest(1,coalesce(p_new_rank,1));
-  if p_new_section='main' then target:=least(45,target); elsif p_new_section='extended' then target:=greatest(46,target); else target:=greatest(101,target); end if;
-
-  -- Park every row in affected sections at unique temporary ranks.
-  with t as (select id,row_number() over(order by rank,id)::int rn from public.levels where section=old_section)
-  update public.levels l set rank=1000000+t.rn from t where l.id=t.id;
-  if old_section<>p_new_section then
-    with t as (select id,row_number() over(order by rank,id)::int rn from public.levels where section=p_new_section)
-    update public.levels l set rank=2000000+t.rn from t where l.id=t.id;
+  if p_new_section='main' then
+    target:=least(45,target);
+  elsif p_new_section='extended' then
+    target:=greatest(46,target);
+  else
+    target:=greatest(101,target);
   end if;
-  update public.levels set rank=900000000 where id=p_level_id;
 
-  -- Close old section (selected level is already parked/removed from it).
-  n:=case when old_section='main' then 0 when old_section='extended' then 45 else 100 end;
-  for r in select id from public.levels where section=old_section and id<>p_level_id order by rank,id loop
-    n:=n+1; update public.levels set rank=n where id=r.id;
+  -- Park all rows in the affected sections at unique temporary ranks.
+  with t as (
+    select id,row_number() over(order by rank,id)::int rn
+    from public.levels
+    where section=old_section
+  )
+  update public.levels l
+  set rank=1000000+t.rn
+  from t
+  where l.id=t.id;
+
+  if old_section<>p_new_section then
+    with t as (
+      select id,row_number() over(order by rank,id)::int rn
+      from public.levels
+      where section=p_new_section
+    )
+    update public.levels l
+    set rank=2000000+t.rn
+    from t
+    where l.id=t.id;
+  end if;
+
+  update public.levels
+  set rank=900000000
+  where id=p_level_id;
+
+  -- Rebuild the old section without the moved level.
+  n:=case when old_section='main' then 0
+          when old_section='extended' then 45
+          else 100 end;
+  for r in
+    select id from public.levels
+    where section=old_section and id<>p_level_id
+    order by rank,id
+  loop
+    n:=n+1;
+    update public.levels set rank=n where id=r.id;
   end loop;
 
-  -- Build destination with the selected level inserted at the requested slot.
-  n:=case when p_new_section='main' then 0 when p_new_section='extended' then 45 else 100 end;
-  for r in select id from public.levels where section=p_new_section and id<>p_level_id order by rank,id loop
+  -- Rebuild the destination and insert the moved level at the requested slot.
+  n:=case when p_new_section='main' then 0
+          when p_new_section='extended' then 45
+          else 100 end;
+  for r in
+    select id from public.levels
+    where section=p_new_section and id<>p_level_id
+    order by rank,id
+  loop
     if n+1=target then n:=n+1; end if;
-    n:=n+1; update public.levels set rank=n where id=r.id;
+    n:=n+1;
+    update public.levels set rank=n where id=r.id;
   end loop;
-  update public.levels set section=p_new_section,rank=target,name=p_name,creator=p_creator,verifier=p_verifier,holder=p_holder,description=coalesce(p_description,''),video_url=nullif(trim(coalesce(p_video_url,'')),''),thumbnail_url=nullif(trim(coalesce(p_thumbnail_url,'')),'') where id=p_level_id;
 
-  -- If Main is full, push the bottom level into Extended #46 automatically.
-  select count(*) into old_count from public.levels where section='main';
+  update public.levels
+  set section=p_new_section,
+      rank=target,
+      name=p_name,
+      creator=nullif(trim(coalesce(p_creator,'')),''),
+      verifier=nullif(trim(coalesce(p_verifier,'')),''),
+      holder=nullif(trim(coalesce(p_holder,'')),''),
+      description=coalesce(p_description,''),
+      video_url=nullif(trim(coalesce(p_video_url,'')),''),
+      thumbnail_url=nullif(trim(coalesce(p_thumbnail_url,'')),'')
+  where id=p_level_id;
+
+  -- Main is capped at 45. If insertion created #46, push the bottom
+  -- main level into Extended starting at #46.
+  select count(*) into old_count
+  from public.levels
+  where section='main';
+
   if old_count>45 then
-    select id into overflow_id from public.levels where section='main' and rank=46;
+    select id into overflow_id
+    from public.levels
+    where section='main' and rank>45
+    order by rank desc, id desc
+    limit 1;
+
     if overflow_id is not null then
-      -- Park Extended, then move overflow to its front.
-      with t as (select id,row_number() over(order by rank,id)::int rn from public.levels where section='extended')
-      update public.levels l set rank=3000000+t.rn from t where l.id=t.id;
-      update public.levels set section='extended',rank=46 where id=overflow_id;
+      with t as (
+        select id,row_number() over(order by rank,id)::int rn
+        from public.levels
+        where section='extended'
+      )
+      update public.levels l
+      set rank=3000000+t.rn
+      from t
+      where l.id=t.id;
+
+      update public.levels
+      set section='extended',rank=46
+      where id=overflow_id;
+
       n:=46;
-      for r in select id from public.levels where section='extended' and id<>overflow_id order by rank,id loop
-        n:=n+1; update public.levels set rank=n where id=r.id;
+      for r in
+        select id from public.levels
+        where section='extended' and id<>overflow_id
+        order by rank,id
+      loop
+        n:=n+1;
+        update public.levels set rank=n where id=r.id;
       end loop;
     end if;
   end if;
+
   perform public.v18_resequence_section('main');
   perform public.v18_resequence_section('extended');
   perform public.v18_resequence_section('legacy');
+
   insert into public.placement_history(level_id,section,rank,points,note)
-  select p_level_id,l.section,l.rank,public.level_points(l.rank),format('V18 placement: %s #%s -> %s #%s',old_section,old_rank,l.section,l.rank) from public.levels l where l.id=p_level_id;
+  select p_level_id,l.section,l.rank,public.level_points(l.rank),
+         format('V18 placement: %s #%s -> %s #%s',old_section,old_rank,l.section,l.rank)
+  from public.levels l
+  where l.id=p_level_id;
 end $$;
 grant execute on function public.v18_move_level(uuid,text,int,text,text,text,text,text,text,text) to authenticated;
 
-create or replace function public.v18_create_level(p_section text,p_rank int,p_name text,p_creator text default '',p_verifier text default '',p_holder text default '',p_description text default '',p_video_url text default null,p_thumbnail_url text default null)
+create or replace function public.v18_create_level(
+  p_section text,
+  p_rank int,
+  p_name text,
+  p_creator text default '',
+  p_verifier text default '',
+  p_holder text default '',
+  p_description text default '',
+  p_video_url text default null,
+  p_thumbnail_url text default null
+)
 returns uuid language plpgsql security definer set search_path=public as $$
-declare nid uuid; target int; r record; n int; old_count int; overflow_id uuid;
+declare
+  nid uuid;
+  target int;
+  r record;
+  n int;
+  old_count int;
+  overflow_id uuid;
 begin
   if not public.is_admin() then raise exception 'not admin'; end if;
   if p_section not in ('main','extended','legacy') then raise exception 'invalid section'; end if;
-  if nullif(trim(coalesce(p_verifier,'')),'') is null then raise exception 'verifier is required'; end if;
+  if nullif(trim(coalesce(p_verifier,'')),'') is null then
+    raise exception 'verifier is required';
+  end if;
+
   perform pg_advisory_xact_lock(hashtext('diddy_v18_ranking'));
   perform public.v18_capture_backup('Before adding level: '||coalesce(p_name,'level'));
+
   target:=greatest(1,coalesce(p_rank,1));
-  if p_section='main' then target:=least(45,target); elsif p_section='extended' then target:=greatest(46,target); else target:=greatest(101,target); end if;
+  if p_section='main' then
+    target:=least(45,target);
+  elsif p_section='extended' then
+    target:=greatest(46,target);
+  else
+    target:=greatest(101,target);
+  end if;
 
-  -- Park destination rows with unique temporary ranks.
-  with t as (select id,row_number() over(order by rank,id)::int rn from public.levels where section=p_section)
-  update public.levels l set rank=6000000+t.rn from t where l.id=t.id;
-  insert into public.levels(section,rank,name,creator,verifier,holder,description,video_url,thumbnail_url)
-  values(p_section,900000000,p_name,nullif(trim(p_creator),''),nullif(trim(p_verifier),''),nullif(trim(p_holder),''),coalesce(p_description,''),nullif(trim(coalesce(p_video_url,'')),''),nullif(trim(coalesce(p_thumbnail_url,'')),'')) returning id into nid;
+  -- Park destination rows first so the unique (section,rank) constraint
+  -- cannot collide while we insert and shift levels.
+  with t as (
+    select id,row_number() over(order by rank,id)::int rn
+    from public.levels
+    where section=p_section
+  )
+  update public.levels l
+  set rank=6000000+t.rn
+  from t
+  where l.id=t.id;
 
-  -- Rebuild destination around insertion point.
-  n:=case when p_section='main' then 0 when p_section='extended' then 45 else 100 end;
-  for r in select id from public.levels where section=p_section and id<>nid order by rank,id loop
+  insert into public.levels(
+    section,rank,name,creator,verifier,holder,description,video_url,thumbnail_url
+  )
+  values(
+    p_section,
+    900000000,
+    p_name,
+    nullif(trim(p_creator),''),
+    nullif(trim(p_verifier),''),
+    nullif(trim(p_holder),''),
+    coalesce(p_description,''),
+    nullif(trim(coalesce(p_video_url,'')),''),
+    nullif(trim(coalesce(p_thumbnail_url,'')),'')
+  )
+  returning id into nid;
+
+  -- Rebuild destination around the insertion point.
+  n:=case when p_section='main' then 0
+          when p_section='extended' then 45
+          else 100 end;
+  for r in
+    select id from public.levels
+    where section=p_section and id<>nid
+    order by rank,id
+  loop
     if n+1=target then n:=n+1; end if;
-    n:=n+1; update public.levels set rank=n where id=r.id;
+    n:=n+1;
+    update public.levels set rank=n where id=r.id;
   end loop;
+
   update public.levels set rank=target where id=nid;
 
-  select count(*) into old_count from public.levels where section='main';
+  -- Main is capped at 45. Push the lowest level beyond #45 into Extended.
+  select count(*) into old_count
+  from public.levels
+  where section='main';
+
   if old_count>45 then
-    select id into overflow_id from public.levels where section='main' and rank=46;
+    select id into overflow_id
+    from public.levels
+    where section='main' and rank>45
+    order by rank desc, id desc
+    limit 1;
+
     if overflow_id is not null then
-      with t as (select id,row_number() over(order by rank,id)::int rn from public.levels where section='extended')
-      update public.levels l set rank=3000000+t.rn from t where l.id=t.id;
-      update public.levels set section='extended',rank=46 where id=overflow_id;
+      with t as (
+        select id,row_number() over(order by rank,id)::int rn
+        from public.levels
+        where section='extended'
+      )
+      update public.levels l
+      set rank=3000000+t.rn
+      from t
+      where l.id=t.id;
+
+      update public.levels
+      set section='extended',rank=46
+      where id=overflow_id;
+
       n:=46;
-      for r in select id from public.levels where section='extended' and id<>overflow_id order by rank,id loop
-        n:=n+1; update public.levels set rank=n where id=r.id;
+      for r in
+        select id from public.levels
+        where section='extended' and id<>overflow_id
+        order by rank,id
+      loop
+        n:=n+1;
+        update public.levels set rank=n where id=r.id;
       end loop;
     end if;
   end if;
+
   perform public.v18_resequence_section('main');
   perform public.v18_resequence_section('extended');
   perform public.v18_resequence_section('legacy');
-  insert into public.placement_history(level_id,section,rank,points,note) select nid,l.section,l.rank,public.level_points(l.rank),'V18 level added at requested position' from public.levels l where l.id=nid;
+
+  insert into public.placement_history(level_id,section,rank,points,note)
+  select nid,l.section,l.rank,public.level_points(l.rank),
+         'V18 level added at requested position'
+  from public.levels l
+  where l.id=nid;
+
   return nid;
 end $$;
 grant execute on function public.v18_create_level(text,int,text,text,text,text,text,text,text) to authenticated;
