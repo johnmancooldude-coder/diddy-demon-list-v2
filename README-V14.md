@@ -23,3 +23,7 @@ Do not replace your working `config.js` with the blank template in this ZIP. Kee
 
 ## Important scalability rule
 The Admin Victory Records panel intentionally does **not** fetch the whole `records` table. It requests a 10-row page from Supabase and only fetches another page when the admin clicks Next.
+
+
+### V14 Admin Auth Fix
+If Admin says “Signed in, but this account is not an admin” even though the user is in `public.admins`, run `v14_admin_fix.sql` once. The updated admin.js verifies admin status through the protected `is_admin()` function and uses the admins table only for displaying the role.
