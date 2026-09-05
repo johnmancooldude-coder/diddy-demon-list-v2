@@ -19,6 +19,8 @@ async function load(){
   render();
 }
 function render(){
+  const totalPoints=S.records.reduce((sum,r)=>sum+pointsFor(S.levels.find(l=>l.id===r.level_id)),0);
+  if($('aqLevels')){$('aqLevels').textContent=S.levels.length;$('aqPlayers').textContent=S.players.length;$('aqVictories').textContent=S.records.length;$('aqPoints').textContent=totalPoints.toLocaleString();}
   $('list_name').value=S.settings?.list_name||'';$('tagline').value=S.settings?.tagline||'';
   $('pointsGrid').innerHTML=S.points.map((p,i)=>`<label class="pointInput"><span>#${i+1}</span><input data-rank="${i+1}" type="number" min="0" value="${p}"></label>`).join('');
   renderLevels();
