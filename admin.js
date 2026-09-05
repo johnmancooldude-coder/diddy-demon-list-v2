@@ -9,11 +9,11 @@ async function load(){
   sb.from('levels').select('*').order('section').order('rank'),
   sb.from('player_leaderboard').select('*').order('total_points',{ascending:false}),
   sb.from('point_values').select('*').order('rank'),
-  sb.from('featured_level').select('*').limit(1)
+  sb.rpc('get_featured_level')
  ]);
  const err=q.find(x=>x.error);if(err?.error){msg(`Database error: ${esc(err.error.message)}`,false);return}
  const {count,error:ce}=await sb.from('records').select('id',{count:'exact',head:true});if(ce){msg(`Database error: ${esc(ce.message)}`,false);return}
- S={settings:q[0].data,levels:q[1].data||[],players:q[2].data||[],records:[],points:(q[3].data||[]).map(x=>x.points),featured:q[4].data?.[0],recordCount:count||0,recordPage:0};
+ S={settings:q[0].data,levels:q[1].data||[],players:q[2].data||[],records:[],points:(q[3].data||[]).map(x=>x.points),featured:{id:q[4].data},recordCount:count||0,recordPage:0};
  render();await loadRecords(0);
 }
 function render(){

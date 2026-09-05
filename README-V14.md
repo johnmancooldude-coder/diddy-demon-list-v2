@@ -27,3 +27,7 @@ The Admin Victory Records panel intentionally does **not** fetch the whole `reco
 
 ### V14 Admin Auth Fix
 If Admin says “Signed in, but this account is not an admin” even though the user is in `public.admins`, run `v14_admin_fix.sql` once. The updated admin.js verifies admin status through the protected `is_admin()` function and uses the admins table only for displaying the role.
+
+
+## Featured level fix 3
+If Featured Level reports a level_id schema-cache error, run `v14_featured_fix3.sql` once. This version handles old and new featured_level schemas and the frontend reads/writes through RPCs.
