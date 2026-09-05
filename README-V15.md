@@ -1,4 +1,4 @@
-# DIDDY DEMON LIST V15 — OVERDRIVE: AUTO LIST BOUNDARY
+# DIDDY DEMON LIST V15.1 — AUTO LIST BOUNDARY FIXED
 
 ## New in V15
 - Main List is automatically capped at #45.
