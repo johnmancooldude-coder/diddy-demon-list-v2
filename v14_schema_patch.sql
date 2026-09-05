@@ -48,3 +48,11 @@ select l.id as level_id, count(r.id)::int as victory_count
 from public.levels l left join public.records r on r.level_id=l.id
 group by l.id;
 grant select on public.level_victory_counts to anon, authenticated;
+
+-- Featured level migration: older schema versions created this table with only `id`.
+-- V14 stores the selected level in `level_id`.
+alter table public.featured_level
+  add column if not exists level_id uuid references public.levels(id) on delete set null;
+
+create index if not exists featured_level_level_id_idx on public.featured_level(level_id);
+notify pgrst, 'reload schema';
