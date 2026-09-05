@@ -48,3 +48,7 @@ The old static ZIP is NOT treated as the authoritative list. Use your four list 
 
 ## Optional: custom domain
 GitHub Pages can use a custom domain later. This does not change Supabase.
+
+
+## V17 — EVOLUTION
+Run `v17_schema_patch.sql` once after V16.2. It adds player/level statistics views, automated news feed, #1 Hall history, saved Time Machine snapshots, and the V17 feature pages. Keep your existing `config.js`.
