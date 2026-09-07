@@ -16,3 +16,5 @@ Built directly from V19.23. This release keeps existing pages/features and adds 
 
 ## Supabase
 No new V20 tables are required. Existing V17/V18/V19 schema objects are reused. Keep the real `config.js` already in your repository. This build intentionally does not include `config.example.js`.
+
+- 2.0.2 homepage recency accuracy: climbers/falls use 24h movement, trending uses 3d victories, rising players compare last 3d vs previous 3d, and recent victories use 24h.
