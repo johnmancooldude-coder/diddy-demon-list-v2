@@ -15,13 +15,15 @@ async function boot(){
  const point=r=>Number(PV.find(x=>Number(x.rank)===Number(r))?.points||Math.max(1,Math.round(100-99*Math.pow((Number(r)-1)/99,.62))));
  const DAY=86400000;
  function playerForm(wins){
+  // Player form is intentionally SHORT-WINDOW because the DIDDY DEMON LIST changes fast.
+  // Compare the last 24 hours against the 24 hours immediately before that.
   const now=Date.now(), recent=[], previous=[];
   wins.forEach(r=>{
    const t=new Date(r.created_at).getTime();
    if(!Number.isFinite(t))return;
    const age=(now-t)/DAY;
-   if(age<=30)recent.push(r);
-   else if(age<=60)previous.push(r);
+   if(age>=0 && age<=1)recent.push(r);
+   else if(age>1 && age<=2)previous.push(r);
   });
   const recentPts=recent.reduce((sum,r)=>sum+point(map[r.level_id]?.rank||101),0);
   const previousPts=previous.reduce((sum,r)=>sum+point(map[r.level_id]?.rank||101),0);
@@ -29,16 +31,21 @@ async function boot(){
   const daysSince=lastTime==null?Infinity:Math.max(0,(now-lastTime)/DAY);
   const rw=recent.length,pw=previous.length;
   let label='💤 QUIET',cls='quiet';
-  if(rw>=2 && (pw===0 || recentPts>=previousPts*1.5 || rw>=pw+2)) {label='🔥 SURGING';cls='surging'}
+  // Surging = at least 6 wins in the last 24h AND a clear acceleration vs the prior 24h.
+  if(rw>=6 && (pw===0 || recentPts>=previousPts*1.5 || rw>=pw+2)) {label='🔥 SURGING';cls='surging'}
+  // Rising = recent activity is ahead of the previous 24h, but not enough for Surging.
   else if(rw>=1 && (pw===0 || recentPts>previousPts*1.08 || rw>pw)) {label='📈 RISING';cls='rising'}
+  // Active = at least one victory in the last 24h, with roughly stable activity.
   else if(rw>=1) {label='⚡ ACTIVE';cls='active'}
-  else if(pw>=1 || daysSince<=60) {label='🧊 COOLING';cls='cooling'}
+  // Cooling = no win in the last 24h after having a win during the preceding 24h.
+  else if(pw>=1) {label='🧊 COOLING';cls='cooling'}
   const change=recentPts-previousPts;
-  const changeText=change>0?`+${change.toLocaleString()} pts vs prior 30d`:change<0?`${change.toLocaleString()} pts vs prior 30d`:'flat vs prior 30d';
-  const detail=rw?`${rw} win${rw===1?'':'s'} / 30d · ${changeText}`:daysSince!==Infinity?`0 wins / 30d · last win ${Math.floor(daysSince)}d ago`:'No recorded victories';
+  const changeText=change>0?`+${change.toLocaleString()} pts vs prior 24h`:change<0?`${change.toLocaleString()} pts vs prior 24h`:'flat vs prior 24h';
+  const detail=rw?`${rw} win${rw===1?'':'s'} / 24h · ${changeText}`:pw?`0 wins / 24h · ${pw} prior-24h win${pw===1?'':'s'}`:daysSince!==Infinity?`0 wins / 24h · last win ${Math.floor(daysSince)}d ago`:'No recorded victories';
   const title=`${label.replace(/^\S+ /,'')} — ${detail}`;
   return {label,cls,detail,title,recentPts,previousPts,recentWins:rw,previousWins:pw};
  }
+
  el.innerHTML=`<div class="listSummary"><span><b>${data.length}</b> players ranked</span><span>Points update automatically from victories</span><span><a href="analytics.html">Open Advanced Analytics →</a></span></div>`+
  (data.map((x,i)=>{
   const wins=records.filter(r=>r.player_id===x.id), xp=Math.round(Number(x.total_points||0)*1.2+wins.length*25), lvl=Math.floor(xp/100)+1;

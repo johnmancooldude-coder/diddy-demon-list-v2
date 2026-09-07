@@ -26,3 +26,7 @@ No new V20 tables are required. Existing V17/V18/V19 schema objects are reused. 
 - Added V2.0.3 release notes to the Changelog page.
 - No config.js is included or overwritten.
 - SQL patch: v2_0_3_ranking_history.sql
+
+
+## V2.0.4
+- Player Form SURGING threshold increased to 6+ wins in the last 24 hours with acceleration.
