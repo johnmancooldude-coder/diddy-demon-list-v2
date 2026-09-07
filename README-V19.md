@@ -11,3 +11,5 @@ V19 is the final maintenance/reliability update before the major 2.0 era.
 - No database migration is required for V19.
 - The working `config.js` is intentionally not included or replaced.
 - `config.example.js` is intentionally not included.
+
+V19.2: fixed generic activity trigger field access and removed the redundant level-editor Ranking Preview panel/confirmation. Run v19_2_activity_trigger_fix.sql once in Supabase.
