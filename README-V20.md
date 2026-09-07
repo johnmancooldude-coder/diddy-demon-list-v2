@@ -1,0 +1,18 @@
+# DIDDY DEMON LIST 2.0 — ULTIMATE
+
+Built directly from V19.23. This release keeps existing pages/features and adds the 2.0 command-center experience.
+
+## Major areas
+- Homepage 3.0 command center
+- Player Profile 5.0 analytics + DNA
+- Level Page 4.0 history + victor analytics
+- Record Book 3.0
+- Time Machine 3.0
+- Player Battles 4.0
+- Search 3.0 smart queries
+- Achievements 2.0
+- Admin 2.0 navigation/command center
+- Visual/mobile polish
+
+## Supabase
+No new V20 tables are required. Existing V17/V18/V19 schema objects are reused. Keep the real `config.js` already in your repository. This build intentionally does not include `config.example.js`.
