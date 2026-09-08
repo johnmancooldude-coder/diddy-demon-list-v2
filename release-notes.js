@@ -1,7 +1,8 @@
 // RELEASE NOTES SOURCE OF TRUTH
 // For every future site update, add ONE new object at the TOP of this array.
 // Keep the newest release first. Do not delete older releases.
-window.DIDDY_RELEASE_NOTES=[
+window.DIDDY_RELEASE_NOTES=[{version:'2.4.1',date:'2026-09-08T00:00:00Z',title:'V2.4.1 — RANKING INTEGRITY FIX',body:'Fixed rank gaps after deleting levels and prevented accidental duplicate level creation from repeated form submissions.'},
+
   {date:'2026-09-09T00:00:00Z',title:'V2.4.0 — THE LEGACY UPDATE',body:'Added Player Profiles 7.0 career legacy tools, daily player-rank reconstruction, four Career Timeline modes, Level Profiles 6.0 history and eras, Diddy Feed 4.0 filters and event cards, Search 5.0 combined queries, Record Book 5.0 historical records, Time Machine 4.0 period intelligence, Diddy Eras 3.0 named activity eras, and Diddy Power Rankings. No seasons, no config changes, and no new Supabase schema required.'},
   {date:'2026-09-08T00:00:00Z',title:'V2.3.3 — LIVE DIDDY FEED CLEANUP',body:'Reduced the Live Diddy Feed height and stopped the homepage layout from stretching the feed into a giant panel beside Recent Victories. This is a small visual cleanup with no feature removals.'},
   {date:'2026-09-09T00:00:00Z',title:'V2.3.2 — DAILY RANK MOVEMENT & TIMELINE SORTING',body:'Fixed Career Rank Movement to reconstruct the player leaderboard position every calendar day from recorded victories and list history. Added Career Timeline sorting for beat order and least-to-hardest. Existing features remain preserved.'},
