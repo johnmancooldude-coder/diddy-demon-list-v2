@@ -82,10 +82,12 @@
 
 
 /* V2.3.3 · Live Diddy Feed size fix */
-.v20Grid2{align-items:start}
-.v20Grid2>section.panel{align-self:start;min-height:0}
-#liveFeed{max-height:280px;overflow-y:auto;overflow-x:hidden;padding-right:4px}
-#liveFeed .adminRow{padding:9px 11px;margin-bottom:6px}
+.wrap,.panel{min-width:0}
+.v20Grid2{align-items:start;min-width:0;width:100%}
+.v20Grid2>section.panel{align-self:start;min-height:0;min-width:0;width:100%;overflow:hidden}
+#liveFeed{max-height:220px;min-width:0;width:100%;overflow-y:auto;overflow-x:hidden;padding-right:4px}
+#liveFeed .adminRow{padding:8px 10px;margin-bottom:6px;min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:break-word}
 #liveFeed .adminRow:last-child{margin-bottom:0}
 .v20Grid2 #liveFeed{scrollbar-width:thin}
-.v23Ticker{max-height:58px;overflow:hidden}
+.v23Ticker{max-width:100%;max-height:42px;overflow:hidden;white-space:nowrap;text-overflow:clip}
+.v23Ticker span{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:top}
