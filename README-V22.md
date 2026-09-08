@@ -18,3 +18,11 @@ This is the first foundation step of V2.2; larger features should be added incre
 
 ## V2.2.2 bugfix
 Fixed the homepage Diddy Daily Briefing render call and bumped the homepage app.js cache version to prevent stale browser JavaScript.
+
+
+## V2.2.3 — THE QUALITY UPDATE
+- Daily Briefing now gives a real last-24-hours summary.
+- Added quiet-day messaging, biggest movement, and most-active-player callouts.
+- Cache-busted homepage scripts to 2.2.3.
+- No database schema changes.
+- Existing config.js is not included or overwritten.
