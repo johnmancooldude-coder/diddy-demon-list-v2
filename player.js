@@ -50,13 +50,4 @@ v21PlayerRankHistory();
 
 document.addEventListener('click',async e=>{if(e.target.id==='copyPlayerLink'){try{await navigator.clipboard.writeText(location.href);e.target.textContent='✅ Copied!';setTimeout(()=>e.target.textContent='🔗 Copy profile link',1200)}catch{e.target.textContent='Copy failed'}}});
 
-document.addEventListener('change',e=>{
- if(e.target.id!=='careerTimelineSort')return;
- const list=document.getElementById('careerTimelineList');
- if(!list||!window.__diddyCareerWins)return;
- const wins=window.__diddyCareerWins.slice();
- if(e.target.value==='hardest')wins.sort((a,b)=>Number(a.level.rank)-Number(b.level.rank)||new Date(a.created_at)-new Date(b.created_at));
- else wins.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
- list.innerHTML=wins.map(r=>`<a class="adminRow row between" href="level.html?id=${r.level.id}"><span><b>#${r.level.rank} · ${esc(r.level.name)}</b><span class="meta"> · ${fmtDate(r.created_at)} · ${esc(r.level.difficulty||'')}</span></span><strong>${pointForCareer(r.level.rank)} pts</strong></a>`).join('')||'<p class="meta">No victories yet.</p>';
-});
 function pointForCareer(rank){return Math.max(1,Math.round(100-99*Math.pow((Number(rank)-1)/99,.62)))}
