@@ -19,3 +19,8 @@ Major platform update built on V2.4.5.
 - Existing achievements, simulator, eras, pure skill, activity, health, power, challenges, search, level pages, admin tools, and changelog remain.
 - Existing `config.js` is intentionally not bundled into this update package; keep the copy already in the GitHub repo.
 - `release-notes.js` keeps prior releases and adds V2.5.0 at the top.
+
+
+## V2.5.1 hotfix
+- Restores Career Timeline sorting on Player Profiles: Oldest → Newest, Newest → Oldest, Hardest → Easiest, Easiest → Hardest.
+- Player ranking, points, victories, and database behavior are unchanged.
