@@ -1,7 +1,8 @@
 // RELEASE NOTES SOURCE OF TRUTH
 // For every future site update, add ONE new object at the TOP of this array.
 // Keep the newest release first. Do not delete older releases.
-window.DIDDY_RELEASE_NOTES=[{version:'2.4.1.3',date:'2026-09-09T00:00:00Z',title:'V2.4.1.3 — CAREER TIMELINE HOTFIX',body:'Fixed the Career Timeline selector so Easiest → hardest, Hardest → easiest, and Highest points → lowest points are no longer overwritten by the legacy timeline listener.'},
+window.DIDDY_RELEASE_NOTES=[{version:'2.4.2',date:'2026-09-13T00:00:00Z',title:'V2.4.2 — THE INTELLIGENCE UPDATE',body:'Added Power Rankings 2.0 with current-vs-previous 3-day position tracking, Diddy Intelligence, Level Heat, smarter Feed filters, Search 5.5 combined queries, Achievement Trophy Cabinet, Battle Intelligence, Time Machine playback, named Era intelligence, 30-day Player Momentum, and recent record alerts. No seasons and no new Supabase schema required.'},
+{version:'2.4.1.3',date:'2026-09-09T00:00:00Z',title:'V2.4.1.3 — CAREER TIMELINE HOTFIX',body:'Fixed the Career Timeline selector so Easiest → hardest, Hardest → easiest, and Highest points → lowest points are no longer overwritten by the legacy timeline listener.'},
 {version:'2.4.1.2',date:'2026-09-08T00:00:00Z',title:'V2.4.1.2 — RANKING REPAIR FIX',body:'Fixed existing rank gaps after level deletion, added a server-side global ranking repair, and added an admin Repair rankings tool.'},
   {version:'2.4.1',date:'2026-09-08T00:00:00Z',title:'V2.4.1 — RANKING INTEGRITY FIX',body:'Fixed rank gaps after deleting levels and prevented accidental duplicate level creation from repeated form submissions.'},
 
